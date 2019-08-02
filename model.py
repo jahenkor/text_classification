@@ -1,33 +1,114 @@
 import pandas as pd
 import operator
 import numpy as np
+from numpy import array
+import random
+from numpy import dot
+from numpy.linalg import norm
 import math
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
 from sklearn.model_selection import train_test_split
-from sklearn.metrics.pairwise import cosine_similarity, euclidean_distances
+from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.decomposition import PCA, TruncatedSVD
+from sklearn.neighbors import DistanceMetric
+import matplotlib.pyplot as plt
 
+error_rate = []
+recall_rate = []
+precision_rate = []
+#KNN - lazy classifer
 def main():
-   # np.set_printoptions(threshold=np.sys.maxsize)
-    #Data Preprocessing/ Load Dataset()
+
+
+    dist_metrics = ['manhattan', 'euclidean', 'jaccard','cosine']
+    train_size = 0.07
+    test_size = 0.01
+    k_val_list = list(range(1,45))
+
+    #Select odd k values for training
+    k_val_listOdds = [i for i in k_val_list if i % 2]
+    accuracy_measures = {}
+    recall_measures = {}
+    precision_measures = {}
+    
+    #Iterate and test distance metrics
+    for i in dist_metrics:
+        accuracy_measure_list = []
+        apply_model = False
+
+#Put this statement, outside for loop
+        if(apply_model):
+             k_val = 25
+             compute(k_val, apply_model, train_size, test_size, "manhattan")
+             exit()
+        else:
+            for k in k_val_listOdds:
+                accuracy_measure_list.append(compute(k, apply_model, train_size, test_size, i))
+                
+            accuracy_measures[i] = accuracy_measure_list.copy()
+            precision_measures[i] = precision_rate.copy()
+            recall_measures[i] = recall_rate.copy()
+            
+            recall_rate.clear()
+            precision_rate.clear()
+
+
+    #Plots
+    #Accuracy over K values
+    plt.subplot(2,2,1)
+    plt.plot(k_val_listOdds, accuracy_measures['manhattan'],'g')
+    plt.plot(k_val_listOdds, accuracy_measures['euclidean'],'b')
+    plt.plot(k_val_listOdds, accuracy_measures['jaccard'], 'r')
+    plt.plot(k_val_listOdds, accuracy_measures['cosine'],'y')
+    plt.xlabel('Number of neighbors k')
+    plt.ylabel('Accuracy')
+
+    #Error rate over K values
+#    plt.subplot(2,2,2)
+#    plt.plot(k_val_listOdds, error_rate)
+#    plt.xlabel('Number of neighbors k')
+#    plt.ylabel('Error Rate')
+        
+    #Recall
+    plt.subplot(2,2,3)
+    plt.plot(k_val_listOdds, recall_measures['manhattan'],'g')
+    plt.plot(k_val_listOdds, recall_measures['euclidean'],'b')
+    plt.plot(k_val_listOdds, recall_measures['jaccard'], 'r')
+    plt.plot(k_val_listOdds, accuracy_measures['cosine'],'y')
+    plt.xlabel('Number of neighbors K')
+    plt.ylabel('Recall rate')
+    
+    #Precision
+    plt.subplot(2,2,4)
+    plt.plot(k_val_listOdds, precision_measures['manhattan'],'g')
+    plt.plot(k_val_listOdds, precision_measures['euclidean'],'b')
+    plt.plot(k_val_listOdds, precision_measures['jaccard'], 'r')
+    plt.plot(k_val_listOdds, accuracy_measures['cosine'],'y')
+    plt.xlabel('Number of neighbors K')
+    plt.ylabel('Precision rate')
+
+    plt.show()
+
+       
+        
+
+def compute(k_val, applyModel, train_size, test_size, dist_metric):
+
+    applyModel = applyModel
+    k_val = k_val
     column_names = ['sentiment','doc']
 
-    #delimiter using #EOF
+    #Load Datasets
     train_dataset = pd.read_csv("1548889051_0353532_train.dat", sep='#EOF', engine="python", header=None, names=column_names)
     train_dataset['sentiment'],train_dataset['doc'] = train_dataset['sentiment'].str.split('\t',1).str
+    test_dataset = 0
 
 
 
-    print(train_dataset)
+    #Splitting train/test set
+    train, test = train_test_split(train_dataset, train_size = train_size, test_size=test_size,shuffle=False)
 
-    #Split training dataset into train/test, shuffle every time
-    train, test = train_test_split(train_dataset, train_size = 0.50, test_size=0.0005,shuffle=False)
-    print("len of training data: %d" % len(train))
-    print("len of test data %d" % len(test))
-    print(train)
-    print(test)
-
-    #Create dictionary/bow from training set
+    #Split document/sentiment
     docs_train = []
     docs_test = []
     sent_test = []
@@ -35,77 +116,127 @@ def main():
     for index, row in train.iterrows():
         docs_train.append(row['doc'])
         sent_train.append(row['sentiment'])
-    for index, row in test.iterrows():
-        docs_test.append(row['doc'])
-        sent_test.append(row['sentiment'])
-    
+    if(not applyModel):
+        for index, row in test.iterrows():
+            docs_test.append(row['doc'])
+            sent_test.append(row['sentiment'])
 
-    vectorizer_train = CountVectorizer(stop_words='english')
-    bow_train = vectorizer_train.fit_transform(docs_train).toarray()
-    dictionary = vectorizer_train.get_feature_names()
-    print("Bow Train\n")
-    print(bow_train)
-    print("Dictionary length: %d\n" % len(dictionary))
+    if(dist_metric == 'euclidean'):
+        vectorizer_train = TfidfVectorizer(stop_words='english', max_df=0.65, ngram_range=(1,3), norm='l2', max_features = 25000)
+    elif(dist_metric == 'jaccard'):
+        vectorizer_train = CountVectorizer(stop_words='english', max_df=0.65, ngram_range=(1,3), binary=True, max_features = 25000)
 
-    #Use bow from training set as a mapping for bow for test set
-    vectorizer_test = CountVectorizer(vocabulary=dictionary, stop_words='english')
-    bow_test = vectorizer_test.fit_transform(docs_test).toarray()
+    elif(dist_metric == 'manhattan'):
+        vectorizer_train = TfidfVectorizer(stop_words='english', max_df=0.65, norm='l1')
 
-    print("Bow Test\n")
-    print(bow_test)
-    print("Columns: %d\n" % len(vectorizer_test.get_feature_names()))
+    else:
+        vectorizer_train = TfidfVectorizer(stop_words='english', norm='l2', max_df = 0.65)
 
-#Euclidean distance between two vectors
-    #euclideanDistance(len(vectorizer_test.get_feature_names()),bow_train[0],bow_test[0])
-    print("Test instance: \n",bow_test[0])
 
-    print("nearest neighbors \n")
+
+
+        
+
+
+
+
+#    lsa = TruncatedSVD(n_components = 3000)
+    #docs_train = lsa.fit_transform(array(docs_train).reshape(1,-1))
+    bow_train = vectorizer_train.fit_transform(docs_train).toarray() 
+#    bow_train = lsa.fit_transform(bow_train)
+
+
+
+   #Applying model
+    bow_test = 0
+    if(applyModel):
+        bow_test = loadTest(vectorizer_train)
+    else:
+        bow_test = vectorizer_train.transform(docs_test).toarray()
+#        bow_test = lsa.transform(bow_test)
+    #bow_test = lsa.transform(bow_test)
 
     predictions_arr = []
     for i in range(len(bow_test)):
-        neighbors = calculateNeighbors(10, bow_train, bow_test[i])
-        for x in neighbors:
-            #print(x)
-            predictions = prediction(3,neighbors, sent_train)
+        neighbors = calculateNeighbors(k_val, bow_train, bow_test[i], dist_metric)
+        predictions = prediction(k_val,neighbors, sent_train)
         if(predictions):
-            print("Document prediction: +1")
             predictions_arr.append('+1')
         else:
-            print("Document prediction: -1")
             predictions_arr.append('-1')
 
-    accuracy_measure = accuracy (predictions_arr, sent_test)
-    print("Accuracy: %f" % accuracy_measure) 
+    #Print training accuracy
+    if(not applyModel):
+        accuracy_measure = accuracy (predictions_arr, sent_test)
+        print("Accuracy: %f" % accuracy_measure) 
+
+
+    #Print to file
+    if(applyModel):
+        return outTestSet(predictions_arr)
+    
+    return accuracy_measure
+
+ 
+def outTestSet(predictions_arr):
+    with open('test.dat','w') as the_file:
+        for i in range(len(predictions_arr)):
+            the_file.write("%s\n" % predictions_arr[i])
+        the_file.flush()
+
+
+
+def loadTest(vectorizer_train):
+
+    test_dataset = pd.read_csv("1548889052_1314285_test.dat", sep="#EOF", engine="python", header=None)
+    test_dataset.columns=["doc","garbage"]
+    del test_dataset['garbage']
+    bow_test = vectorizer_train.transform(test_dataset['doc'].values).toarray()
+
+
+    return bow_test
+
+
 
 
 
 #Euclidean Distance between two vectors
-def euclideanDistance(length, train, test):
-    #dist = 0
-    #for i in range(length):
-     #   cos = cosine_similarity(train[i],test)
-     #   dist = dist + pow(cos,2)
-    #print("Distance: %d" % dist)
-    return euclidean_distances(train,test.reshape(-1,1))
+def distanceMetric(length, train, test, dist_metric):
+
+    if(dist_metric == 'cosine'):
+        return 1-(dot(train, test)/(norm(train)*norm(test)))
+
+
+    distanceType = DistanceMetric.get_metric(dist_metric)
+    distance = distanceType.pairwise(train.reshape(1,-1),test.reshape(1,-1))
+    
+    #Jaccard Distance
+    if(dist_metric == 'jaccard'):
+        return distance
+    
+    
+    return distance
 
 #calculate neighbors based on train set and a given test instance
-def calculateNeighbors(k, train, test_inst):
+def calculateNeighbors(k, train, test_inst, dist_metric):
     distances = []
     neighbors = []
     testLength = len(test_inst)
     trainLength = len(train)
+
     for x in range(trainLength):
-        distance = euclideanDistance(testLength, train[x], test_inst)
         
-        #Save train_inst, distance and indexFound in distances array
-        distances.append((train[x],distance,x))
-        #print(distances[x])
-    distances.sort(key=operator.itemgetter(1))
+        distance = distanceMetric(testLength, train[x], test_inst,dist_metric)
+
+        #Save distance and indexFound in distances array
+        distances.append((distance,x))
+
+    
+    distances.sort(key=operator.itemgetter(0))
+
+    #Find closest k neighbors
     for i in range(k):
-        #index of values found
-        #print(distances[i][2])
-        neighbors.append(distances[i][2])
-        print("Closest k distances: %d" % distances[i][2])
+        neighbors.append(distances[i][1])
     return neighbors
 
 def prediction(k, neighbors, train):
@@ -114,31 +245,47 @@ def prediction(k, neighbors, train):
     pos_sentiment = 0
     neg_sentiment = 0
     for i in range(k):
-        #for sentiment in train:
-            #print(row['sentiment'])
         if train[neighbors[i]] == '+1':
-         #   x+=1
-                #continue
-        #if sentiment == '+1':
-                #sentiment_arr.append('+1')
             pos_sentiment += 1
         else:
-                #sentiment_arr.append('-1')
             neg_sentiment += 1
-        #x+=1
-    #x = 0
 
-    #print(sentiment_arr)
-    #ternary conditional
     return (0,1)[pos_sentiment > neg_sentiment]
 
 def accuracy(prediction, actual):
 
+    
     #Calculate percentage of correct predictions
     correct = 0
+    false_neg = 0
+    false_pos = 0
+    true_pos = 0
+    true_neg = 0
+    total_incorrect = 0
     for x in range(len(prediction)):
         if prediction[x] == actual[x]:
+            if(prediction[x] == '+1'):
+                true_pos += 1
+            if(prediction[x] == '-1'):
+                true_neg += 1
             correct += 1
+ 
+        else:
+            if(prediction[x] == '+1'):
+                false_pos += 1
+            if(prediction[x] == '-1'):
+                false_neg += 1
+            total_incorrect += 1
+
+    error_rate.append(total_incorrect/len(actual))
+    if(true_pos == 0):
+        recall_rate.append(0)
+    else:
+        recall_rate.append(true_pos / (true_pos + false_neg))
+    if(true_pos == 0):
+        precision_rate.append(0)
+    else:
+        precision_rate.append(true_pos / (true_pos + false_pos))
     return correct/len(actual)
 
             
@@ -147,28 +294,8 @@ def accuracy(prediction, actual):
 
 
 main()
-#i = 0
-#pos_docs = numpy
 
 
-#Debug
-#print(pos_docs)
-#print(len(pos_docs))
-
-#vectorizer = TfidfVectorizer(stop_words='english', min_df=100)
-#X = vectorizer.fit_transform(pos_docs)
-#idf = vectorizer.idf_
-#feature_names = vectorizer.get_feature_names()
-#corpus_index = [n for n in pos_docs]
-#dic = dict(zip(vectorizer.get_feature_names(),idf))
-#print(dic)
-
-
-
-#Test Dataset
-#test_dataset = pd.read_csv("1548889052_1314285_test.dat", error_bad_lines=False, sep = "#EOF", engine="python", header=None)
-
-#print(test_dataset)
 
 
 
